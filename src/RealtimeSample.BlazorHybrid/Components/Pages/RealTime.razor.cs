@@ -16,7 +16,7 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
     public partial class RealTime(IMicrophoneService microphoneService, ISpeakerService speakerService)
     {
         List<RealtimeUpdate> RealtimeUpdates { get; } = new();
-        List<UpdateItem> UpdateItems { get; } = new();
+        List<UpdateGroup> UpdateGroups { get; } = new();
         public RealtimeUpdate? SelectedUpdate { get; set; }
         private async Task OnStartClicked(bool arg)
         {
@@ -234,26 +234,39 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
             RealtimeUpdates.Add(update);
 
             using var doc = JsonDocument.Parse(update.GetRawContent());
-            
+
             if (doc.RootElement.TryGetProperty("item_id", out JsonElement itemIdElement))
             {
                 var itemId = itemIdElement.GetString();
-                var item = UpdateItems.FirstOrDefault(i => i.ItemId == itemId);
-                if (item == null)
+                var group = UpdateGroups.FirstOrDefault(i => i.GroupId == itemId);
+                
+                if (group == null)
                 {
-                    item = new UpdateItem { ItemId = itemId };
-                    UpdateItems.Insert(0, item);
+                    group = new UpdateGroup 
+                    { 
+                        GroupId = itemId ,
+                    };
+                    UpdateGroups.Insert(0, group);
                 }
-                item.Updates.Add(update);
+
+                var container = new UpdateContainer(update);
+                var lastGroup = UpdateGroups.First();
+
+                if (lastGroup != null && lastGroup != group)
+                {
+                    container.IsOutOfOrder = true;
+                }
+
+                group.Updates.Add(container);
             }
             else
             {
-                var item = new UpdateItem 
-                { 
-                    ItemId = update.Kind.ToString(),
-                    Updates = { update }
+                var item = new UpdateGroup
+                {
+                    GroupId = update.Kind.ToString(),
+                    Updates = { new UpdateContainer(update) }
                 };
-                UpdateItems.Insert(0, item);
+                UpdateGroups.Insert(0, item);
             }
 
             InvokeAsync(StateHasChanged);
@@ -265,11 +278,17 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
             StateHasChanged();
         }
 
-        class UpdateItem
+        class UpdateGroup
         {
-            public string ItemId { get; set; }
-            public List<RealtimeUpdate> Updates { get; } = [];
+            public string GroupId { get; set; } = "";
+            public List<UpdateContainer> Updates { get; } = [];
         }
 
+        class UpdateContainer(RealtimeUpdate rawUpdate, bool isOutOfOrder = false)
+        {
+            public RealtimeUpdate RawUpdate { get; set; } = rawUpdate;
+            public bool IsOutOfOrder { get; set; } = isOutOfOrder;
+
+        }
     }
 }

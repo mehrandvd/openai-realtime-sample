@@ -1,42 +1,52 @@
 ﻿@page "/realtime"
 
 
-<BitStack FillContent>
+<BitStack AutoSize>
     <BitText Tag="h1">Realtime API</BitText>
     <BitButton OnClick="OnStartClicked">Start Realtime</BitButton>
     <BitStack Horizontal>
-        <BitSplitter>
-            <FirstPanel>
-                <BitScrollablePane>
-                    <BitStack AutoWidth>
-                        @foreach(var item in UpdateItems)
-                        {
-                            <BitText Tag="h3"><strong>@item.Updates.Count</strong> updates -  @item.ItemId</BitText>
+        <BitStack AutoWidth>
+            <BitScrollablePane style="max-height: 800px" FullWidth>
+                <BitStack Gap="0.5rem" AutoWidth>
+                    @foreach(var item in UpdateGroups)
+                    {
+                        <BitCard FullWidth>
+                            <BitText Tag="h3"><strong>@item.Updates.Count</strong> updates -  @item.GroupId</BitText>
                             <BitStack Wrap Alignment="BitAlignment.Start" style="max-height:300px">
                                 @foreach (var update in item.Updates)
                                 {
                                     <BitTag 
                                         Variant="BitVariant.Fill" 
                                         Size="BitSize.Small"
-                                        OnClick="()=>SetSelectedUpdate(update)"
+                                        Color="@(update.IsOutOfOrder ? BitColor.Warning : BitColor.Primary)"
+                                        OnClick="()=>SetSelectedUpdate(update.RawUpdate)"
                                     >
-                                        @update.Kind
+                                        @update.RawUpdate.Kind
                                     </BitTag>
                                 }
                             </BitStack>
-                        }
-                    </BitStack>
-                </BitScrollablePane>
-            </FirstPanel>
-            <SecondPanel>
-                <BitScrollablePane>
-                    <code>
-                        <pre>
-                            @FormatJson(SelectedUpdate?.GetRawContent()?.ToString())
-                        </pre>
-                    </code>
-                </BitScrollablePane>
-            </SecondPanel>
-        </BitSplitter>
+                        </BitCard>
+                    }
+                </BitStack>
+            </BitScrollablePane>
+        </BitStack>
+        <BitStack style="max-width: 300px">
+            <BitScrollablePane style="max-height: 800px">
+                <BitCard>
+                <code>
+                    <div>
+                        <strong>@SelectedUpdate?.Kind</strong>
+                    </div>
+                    <div>
+                        <strong>@SelectedUpdate?.GetType().Name</strong>
+                    </div>
+                    <pre>
+                        @FormatJson(SelectedUpdate?.GetRawContent()?.ToString())
+                    </pre>
+                </code>
+                </BitCard>
+            </BitScrollablePane>
+        </BitStack>
+        
     </BitStack>
 </BitStack>
