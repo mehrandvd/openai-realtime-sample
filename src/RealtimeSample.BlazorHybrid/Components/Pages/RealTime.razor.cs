@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace RealtimeSample.BlazorHybrid.Components.Pages
@@ -14,6 +15,9 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
     [Experimental("OPENAI002")]
     public partial class RealTime(IMicrophoneService microphoneService, ISpeakerService speakerService)
     {
+        List<RealtimeUpdate> RealtimeUpdates { get; } = new();
+        List<UpdateItem> UpdateItems { get; } = new();
+        public RealtimeUpdate? SelectedUpdate { get; set; }
         private async Task OnStartClicked(bool arg)
         {
             var endpoint = Environment.GetEnvironmentVariable("AzureOpenAI:gpt4o-realtime:Endpoint")
@@ -57,7 +61,9 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
 
             await foreach (RealtimeUpdate update in session.ReceiveUpdatesAsync())
             {
-                Console.WriteLine($"--- Update received: {update.GetType().Name}");
+                // Console.WriteLine($"--- Update received: {update.GetType().Name}");
+                AddRealtimeUpdate(update);
+                await InvokeAsync(StateHasChanged);
 
                 if (update is ConversationSessionStartedUpdate sessionStartedUpdate)
                 {
@@ -179,6 +185,25 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
             }
         }
 
+        private static string FormatJson(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return json ?? string.Empty;
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                var formatted = JsonSerializer.Serialize(
+                    doc.RootElement,
+                    new JsonSerializerOptions { WriteIndented = true });
+
+                return formatted;
+            }
+            catch
+            {
+                // Not valid JSON; return original
+                return json!;
+            }
+        }
+
         [Experimental("OPENAI002")]
         static ConversationFunctionTool CreateSampleWeatherTool()
         {
@@ -203,5 +228,48 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
                                                    """)
             };
         }
+
+        private void AddRealtimeUpdate(RealtimeUpdate update)
+        {
+            RealtimeUpdates.Add(update);
+
+            using var doc = JsonDocument.Parse(update.GetRawContent());
+            
+            if (doc.RootElement.TryGetProperty("item_id", out JsonElement itemIdElement))
+            {
+                var itemId = itemIdElement.GetString();
+                var item = UpdateItems.FirstOrDefault(i => i.ItemId == itemId);
+                if (item == null)
+                {
+                    item = new UpdateItem { ItemId = itemId };
+                    UpdateItems.Insert(0, item);
+                }
+                item.Updates.Add(update);
+            }
+            else
+            {
+                var item = new UpdateItem 
+                { 
+                    ItemId = update.Kind.ToString(),
+                    Updates = { update }
+                };
+                UpdateItems.Insert(0, item);
+            }
+
+            InvokeAsync(StateHasChanged);
+        }
+
+        void SetSelectedUpdate(RealtimeUpdate update)
+        {
+            SelectedUpdate = update;
+            StateHasChanged();
+        }
+
+        class UpdateItem
+        {
+            public string ItemId { get; set; }
+            public List<RealtimeUpdate> Updates { get; } = [];
+        }
+
     }
 }

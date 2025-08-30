@@ -1,5 +1,42 @@
 ﻿@page "/realtime"
 
-<h1>Realtime API</h1>
 
-<BitButton OnClick="OnStartClicked">Start Realtime</BitButton>
+<BitStack FillContent>
+    <BitText Tag="h1">Realtime API</BitText>
+    <BitButton OnClick="OnStartClicked">Start Realtime</BitButton>
+    <BitStack Horizontal>
+        <BitSplitter>
+            <FirstPanel>
+                <BitScrollablePane>
+                    <BitStack AutoWidth>
+                        @foreach(var item in UpdateItems)
+                        {
+                            <BitText Tag="h3"><strong>@item.Updates.Count</strong> updates -  @item.ItemId</BitText>
+                            <BitStack Wrap Alignment="BitAlignment.Start" style="max-height:300px">
+                                @foreach (var update in item.Updates)
+                                {
+                                    <BitTag 
+                                        Variant="BitVariant.Fill" 
+                                        Size="BitSize.Small"
+                                        OnClick="()=>SetSelectedUpdate(update)"
+                                    >
+                                        @update.Kind
+                                    </BitTag>
+                                }
+                            </BitStack>
+                        }
+                    </BitStack>
+                </BitScrollablePane>
+            </FirstPanel>
+            <SecondPanel>
+                <BitScrollablePane>
+                    <code>
+                        <pre>
+                            @FormatJson(SelectedUpdate?.GetRawContent()?.ToString())
+                        </pre>
+                    </code>
+                </BitScrollablePane>
+            </SecondPanel>
+        </BitSplitter>
+    </BitStack>
+</BitStack>
