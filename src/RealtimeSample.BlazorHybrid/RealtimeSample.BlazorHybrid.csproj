@@ -63,6 +63,7 @@
     <ItemGroup>
         <PackageReference Include="Azure.AI.OpenAI" Version="2.3.0-beta.2" />
         <PackageReference Include="Bit.BlazorUI" Version="9.11.3" />
+        <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="9.8.0" />
         <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.0" />
