@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36401.2
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RealtimeSample.Console", "RealtimeSample.Console\RealtimeSample.Console.csproj", "{C5380B38-0915-7F8D-43AD-328FE60BE29E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RealtimeSample.BlazorHybrid", "RealtimeSample.BlazorHybrid\RealtimeSample.BlazorHybrid.csproj", "{C59B3096-3526-F822-4086-93D63A22BA32}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C5380B38-0915-7F8D-43AD-328FE60BE29E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C5380B38-0915-7F8D-43AD-328FE60BE29E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C5380B38-0915-7F8D-43AD-328FE60BE29E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C5380B38-0915-7F8D-43AD-328FE60BE29E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C59B3096-3526-F822-4086-93D63A22BA32}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C59B3096-3526-F822-4086-93D63A22BA32}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C59B3096-3526-F822-4086-93D63A22BA32}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C59B3096-3526-F822-4086-93D63A22BA32}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {375DF3B0-1B02-4350-AE54-2D9D73A90EE0}
+	EndGlobalSection
+EndGlobal
