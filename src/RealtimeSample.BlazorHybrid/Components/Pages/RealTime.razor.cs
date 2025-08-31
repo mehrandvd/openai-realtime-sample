@@ -165,15 +165,15 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
                     // Here, if we processed tool calls in the course of the model turn, we finish the
                     // client turn to resume model generation. The next model turn will reflect the tool
                     // responses that were already provided.
-                    // if (turnFinishedUpdate.CreatedItems.Any(item => item.FunctionName?.Length > 0))
-                    // {
-                    //     Console.WriteLine($"  -- Ending client turn for pending tool responses");
-                    //     await session.StartResponseAsync();
-                    // }
-                    // else
-                    // {
-                    //     break;
-                    // }
+                    if (turnFinishedUpdate.CreatedItems.Any(item => item.FunctionName?.Length > 0))
+                    {
+                        Console.WriteLine($"  -- Ending client turn for pending tool responses");
+                        await session.StartResponseAsync();
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
 
                 if (update is RealtimeErrorUpdate errorUpdate)
@@ -235,7 +235,11 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
 
             using var doc = JsonDocument.Parse(update.GetRawContent());
 
-            if (doc.RootElement.TryGetProperty("item_id", out JsonElement itemIdElement))
+            if (
+                doc.RootElement.TryGetProperty("item_id", out JsonElement itemIdElement)
+                || 
+                (doc.RootElement.TryGetProperty("item", out var itemElement) && itemElement.TryGetProperty("id", out itemIdElement))
+                )
             {
                 var itemId = itemIdElement.GetString();
                 var group = UpdateGroups.FirstOrDefault(i => i.GroupId == itemId);

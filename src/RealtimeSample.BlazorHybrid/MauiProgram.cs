@@ -28,10 +28,10 @@ namespace RealtimeSample.BlazorHybrid
             builder.Services.AddSingleton<ISpeakerService, WindowsSpeakerService>();
 #endif
 
-#if DEBUG
+// #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
     		builder.Logging.AddDebug();
-#endif
+// #endif
 
             return builder.Build();
         }
