@@ -1,8 +1,12 @@
 ﻿using Azure.AI.OpenAI;
+using Microsoft.Extensions.AI;
 using OpenAI.Realtime;
+using RealtimeSample.Console; // for AIExtensions
 using RealtimeSample.Console.Utility;
 using System.ClientModel;
-using System.Threading;
+using System.ComponentModel;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 #pragma warning disable OPENAI002
 
@@ -30,20 +34,27 @@ var speaker = new ConsoleSpeaker();
 using RealtimeSession session = await realtimeClient.StartConversationSessionAsync(
     model: deployment);
 
- ConversationSessionOptions sessionOptions = new()
- {
-     Instructions = "Answer the questions happily. "
-         + "Prefer to call tools whenever applicable.",
-     Voice = ConversationVoice.Alloy,
-     Tools = { CreateSampleWeatherTool() },
-     ContentModalities = RealtimeContentModalities.Text | RealtimeContentModalities.Audio,
-     InputAudioFormat = RealtimeAudioFormat.Pcm16,
-     OutputAudioFormat = RealtimeAudioFormat.Pcm16,
-     InputTranscriptionOptions = new() { Model = "whisper-1" },
-     TurnDetectionOptions = TurnDetectionOptions.CreateServerVoiceActivityTurnDetectionOptions(
-         detectionThreshold: 0.4f,
-         silenceDuration: TimeSpan.FromMilliseconds(1000)),
- };
+// Build AIFunction list and convert to conversation tools
+var tools = GetTools();
+var conversationTools = tools.Select(t => t.ConversationTool()).ToArray();
+
+ConversationSessionOptions sessionOptions = new()
+{
+    Instructions = "Answer the questions happily. Prefer to call tools whenever applicable.",
+    Voice = ConversationVoice.Alloy,
+    ContentModalities = RealtimeContentModalities.Text | RealtimeContentModalities.Audio,
+    InputAudioFormat = RealtimeAudioFormat.Pcm16,
+    OutputAudioFormat = RealtimeAudioFormat.Pcm16,
+    InputTranscriptionOptions = new() { Model = "whisper-1" },
+    TurnDetectionOptions = TurnDetectionOptions.CreateServerVoiceActivityTurnDetectionOptions(
+        detectionThreshold: 0.4f,
+        silenceDuration: TimeSpan.FromMilliseconds(1000)),
+};
+
+foreach (var tool in conversationTools)
+{
+    sessionOptions.Tools.Add(tool);
+}
 
 await session.ConfigureConversationSessionAsync(sessionOptions);
 
@@ -55,9 +66,7 @@ await foreach (RealtimeUpdate update in session.ReceiveUpdatesAsync())
     {
         Console.WriteLine($"<<< Session started. ID: {sessionStartedUpdate.SessionId}");
         Console.WriteLine();
-
         _ = Task.Run(async () => await session.SendInputAudioAsync(micStream));
-
     }
 
     if (update is InputAudioSpeechStartedUpdate speechStartedUpdate)
@@ -72,35 +81,13 @@ await foreach (RealtimeUpdate update in session.ReceiveUpdatesAsync())
             $"  -- Voice activity detection ended at {speechFinishedUpdate.AudioEndTime}");
     }
 
-    // Item started updates notify that the model generation process will insert a new item into
-    // the conversation and begin streaming its content via content updates.
-    if (update is OutputStreamingStartedUpdate itemStreamingStartedUpdate)
-    {
-        Console.WriteLine($"  -- Begin streaming of new item");
-        if (!string.IsNullOrEmpty(itemStreamingStartedUpdate.FunctionName))
-        {
-            Console.Write($"    {itemStreamingStartedUpdate.FunctionName}: ");
-        }
-    }
-
     if (update is OutputDeltaUpdate deltaUpdate)
     {
-        // With audio output enabled, the audio transcript of the delta update contains an approximation of
-        // the words spoken by the model. Without audio output, the text of the delta update will contain
-        // the segments making up the text content of a message.
         Console.Write(deltaUpdate.AudioTranscript);
         Console.Write(deltaUpdate.Text);
         Console.Write(deltaUpdate.FunctionArguments);
         if (deltaUpdate.AudioBytes is not null)
         {
-            // if (!outputAudioStreamsById.TryGetValue(deltaUpdate.ItemId, out Stream value))
-            // {
-            //     string filename = $"output_{sessionOptions.OutputAudioFormat}_{deltaUpdate.ItemId}.raw";
-            //     value = File.OpenWrite(filename);
-            //     outputAudioStreamsById[deltaUpdate.ItemId] = value;
-            // }
-            //
-            // value.Write(deltaUpdate.AudioBytes);
             if (speaker != null && deltaUpdate.AudioBytes is not null)
             {
                 await speaker.EnqueueAsync(deltaUpdate.AudioBytes.ToArray(), deltaUpdate.Text);
@@ -108,11 +95,6 @@ await foreach (RealtimeUpdate update in session.ReceiveUpdatesAsync())
         }
     }
 
-
-
-    // Item finished updates arrive when all streamed data for an item has arrived and the
-    // accumulated results are available. In the case of function calls, this is the point
-    // where all arguments are expected to be present.
     if (update is OutputStreamingFinishedUpdate itemStreamingFinishedUpdate)
     {
         Console.WriteLine();
@@ -120,10 +102,30 @@ await foreach (RealtimeUpdate update in session.ReceiveUpdatesAsync())
 
         if (itemStreamingFinishedUpdate.FunctionCallId is not null)
         {
-            Console.WriteLine($"    + Responding to tool invoked by item: {itemStreamingFinishedUpdate.FunctionName}");
+            // Process function/tool invocation
+            var callId = itemStreamingFinishedUpdate.FunctionCallId;
+            var functionName = itemStreamingFinishedUpdate.FunctionName;
+            var functionCallArguments = itemStreamingFinishedUpdate.FunctionCallArguments;
+
+            JsonNode node = JsonNode.Parse(functionCallArguments)!;
+            AIFunctionArguments functionArgs = ToAIFunctionArguments(node);
+
+            string output;
+            try
+            {
+                var tool = tools.First(t => t.Name == functionName);
+                var result = await tool.InvokeAsync(functionArgs);
+                output = result?.ToString() ?? string.Empty;
+            }
+            catch (Exception ex)
+            {
+                output = $"Tool execution failed: {ex.Message}";
+            }
+
             RealtimeItem functionOutputItem = RealtimeItem.CreateFunctionCallOutput(
-                callId: itemStreamingFinishedUpdate.FunctionCallId,
-                output: "70 degrees Fahrenheit and sunny");
+                callId: callId,
+                output: output);
+
             await session.AddItemAsync(functionOutputItem);
         }
         else if (itemStreamingFinishedUpdate.MessageContentParts?.Count > 0)
@@ -147,19 +149,12 @@ await foreach (RealtimeUpdate update in session.ReceiveUpdatesAsync())
     if (update is ResponseFinishedUpdate turnFinishedUpdate)
     {
         Console.WriteLine($"  -- Model turn generation finished. Status: {turnFinishedUpdate.Status}");
-    
-        // Here, if we processed tool calls in the course of the model turn, we finish the
-        // client turn to resume model generation. The next model turn will reflect the tool
-        // responses that were already provided.
-        // if (turnFinishedUpdate.CreatedItems.Any(item => item.FunctionName?.Length > 0))
-        // {
-        //     Console.WriteLine($"  -- Ending client turn for pending tool responses");
-        //     await session.StartResponseAsync();
-        // }
-        // else
-        // {
-        //     break;
-        // }
+
+        if (turnFinishedUpdate.CreatedItems.Any(item => item.FunctionName?.Length > 0))
+        {
+            Console.WriteLine($"  -- Ending client turn for pending tool responses");
+            await session.StartResponseAsync();
+        }
     }
 
     if (update is RealtimeErrorUpdate errorUpdate)
@@ -172,26 +167,52 @@ await foreach (RealtimeUpdate update in session.ReceiveUpdatesAsync())
 
 Console.ReadLine();
 
-static ConversationFunctionTool CreateSampleWeatherTool()
+static AIFunctionArguments ToAIFunctionArguments(JsonNode node)
 {
-    return new ConversationFunctionTool("get_weather_for_location")
+    var args = new AIFunctionArguments();
+    if (node is JsonObject obj)
     {
-        Description = "gets the weather for a location",
-        Parameters = BinaryData.FromString("""
-                                           {
-                                             "type": "object",
-                                             "properties": {
-                                               "location": {
-                                                 "type": "string",
-                                                 "description": "The city and state, e.g. San Francisco, CA"
-                                               },
-                                               "unit": {
-                                                 "type": "string",
-                                                 "enum": ["c","f"]
-                                               }
-                                             },
-                                             "required": ["location","unit"]
-                                           }
-                                           """)
+        foreach (var prop in obj)
+        {
+            object? value = prop.Value switch
+            {
+                JsonValue v when v.TryGetValue<decimal>(out var dec) => dec,
+                JsonValue v when v.TryGetValue<bool>(out var b) => b,
+                JsonValue v when v.TryGetValue<string?>(out var s) => s,
+                JsonObject o => ToAIFunctionArguments(o),
+                JsonArray a => a.Where(o => o is not null)
+                                .Select(o => ToAIFunctionArguments(o!)).ToArray(),
+                _ => null
+            };
+            args.Add(prop.Key, value);
+        }
+    }
+    return args;
+}
+
+static AIFunction[] GetTools()
+{
+    return
+    [
+        AIFunctionFactory.Create(GetWeather)
+    ];
+}
+
+[Description("gets the weather for a location")]
+static string GetWeather(
+    [Description("The city and state, e.g. San Francisco, CA")] string location,
+    Unit unit)
+{
+    return unit switch
+    {
+        Unit.C => $"The weather in {location} is 21 degrees Celsius and sunny.",
+        Unit.F => $"The weather in {location} is 70 degrees Fahrenheit and sunny.",
+        _ => $"The weather in {location} is sunny.",
     };
+}
+
+enum Unit
+{
+    C,
+    F
 }
