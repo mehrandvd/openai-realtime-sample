@@ -246,10 +246,13 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
             F
         }
 
+        int LastOrderNo = 0;
+
         private void AddRealtimeUpdate(RealtimeUpdate update)
         {
-
+            LastOrderNo++;
             var container = new UpdateContainer(update);
+            container.OrderNo = LastOrderNo;
             Updates.Add(container);
 
             using var doc = JsonDocument.Parse(update.GetRawContent());
@@ -279,41 +282,54 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
                 container.ResponseId = responseId;
             }
 
-            if (container.ItemId is not null)
+            var groupId = container.ItemId ?? Guid.NewGuid().ToString();
+
+            var group = UpdateGroups.FirstOrDefault(i =>
+                i.GroupId == groupId
+                // || 
+                // (i.ItemId is not null && i.ItemId == container.ItemId)
+                // || (i.ResponseId is not null && i.ResponseId == container.ResponseId)
+            );
+
+            if (group == null)
             {
-                
-                var group = UpdateGroups.FirstOrDefault(i => i.GroupId == container.ItemId);
-                
-                if (group == null)
+                group = new UpdateGroup
                 {
-                    group = new UpdateGroup 
-                    { 
-                        GroupId = container.ItemId ?? "N/A",
-                        Title = container.EventType ?? "N/A",
-                    };
-                    UpdateGroups.Insert(0, group);
-                }
-
-                // var container = new UpdateContainer(update);
-                var lastGroup = UpdateGroups.First();
-
-                if (lastGroup != null && lastGroup != group)
-                {
-                    container.IsOutOfOrder = true;
-                }
-
-                group.Updates.Add(container);
-            }
-            else
-            {
-                var item = new UpdateGroup
-                {
-                    GroupId = update.Kind.ToString(),
-                    Title = container.EventType ?? "N/A",
-                    Updates = { container }
+                    GroupId = groupId,
+                    ItemId = container.ItemId ?? "N/A",
+                    ResponseId = container.ResponseId ?? "N/A",
+                    Title = $"Group: {groupId}",
                 };
-                UpdateGroups.Insert(0, item);
+                UpdateGroups.Insert(0, group);
             }
+
+            // var container = new UpdateContainer(update);
+            var lastGroup = UpdateGroups.First();
+
+            if (lastGroup != group)
+            {
+                container.IsOutOfOrder = true;
+            }
+
+            group.Updates.Add(container);
+
+            // if (container.ItemId is not null)
+            // {
+            //     
+            //     
+            // }
+            // else
+            // {
+            //     var item = new UpdateGroup
+            //     {
+            //         GroupId = update.Kind.ToString(),
+            //         ItemId = container.ItemId ?? "N/A",
+            //         ResponseId = container.ResponseId ?? "N/A",
+            //         Title = container.EventType ?? "N/A",
+            //         Updates = { container }
+            //     };
+            //     UpdateGroups.Insert(0, item);
+            // }
 
             InvokeAsync(StateHasChanged);
         }
@@ -328,6 +344,9 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
         class UpdateGroup
         {
             public string GroupId { get; set; } = "";
+            public string? ItemId { get; set; }
+            public string? ResponseId { get; set; }
+
             public string Title { get; set; } = "";
             public List<UpdateContainer> Updates { get; } = [];
         }
@@ -350,6 +369,7 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
         public class UpdateContainer(RealtimeUpdate rawUpdate, bool isOutOfOrder = false)
         {
             public string Id { get; } = Guid.NewGuid().ToString();
+            public int OrderNo { get; set; } = -1;
             public string? ItemId { get; set; }
             public string? ResponseId { get; set; }
             public string? ConversationId { get; set; }

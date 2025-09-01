@@ -15,17 +15,37 @@
                         {
                             <BitCard FullWidth>
                                 <BitStack>
-                                    <BitText Tag="h4"><strong>@group.Updates.Count</strong> @group.Title</BitText>
+                                    <BitText Tag="h4" Foreground="BitColorKind.Secondary"><strong>@group.Updates.Count</strong> - @group.Title</BitText>
                                     <BitStack Wrap Alignment="BitAlignment.Start" style="max-height:300px">
                                         @foreach (var update in group.Updates)
                                         {
+                                            if (
+                                                (SelectedUpdate?.IsOutOfOrder ?? false)
+                                                && update.OrderNo == SelectedUpdate?.OrderNo+1)
+                                            {
+                                                <BitTag 
+                                                    Color="BitColor.Secondary"
+                                                    Size = "BitSize.Small">
+                                                    Here
+                                                </BitTag>
+                                            }
                                             <BitTag Variant="@GetTagVariant(update)"
                                                     style="cursor: pointer;"
                                                     Size="@(update == SelectedUpdate ? BitSize.Large : BitSize.Small)"
                                                     Color="@(update.IsOutOfOrder ? BitColor.Warning : BitColor.Primary)"
                                                     OnClick="() => SetSelectedUpdate(update)">
-                                                @update.EventType
+                                                @($"{update.OrderNo:000} - {update.EventType}")
                                             </BitTag>
+                                            if (
+                                                (SelectedUpdate?.IsOutOfOrder ?? false)
+                                                && update.OrderNo == SelectedUpdate?.OrderNo-1)
+                                            {
+                                                <BitTag 
+                                                    Color="BitColor.Secondary"
+                                                    Size = "BitSize.Small">
+                                                    Here
+                                                </BitTag>
+                                            }
                                         }
                                     </BitStack>
                                 </BitStack>
@@ -54,6 +74,16 @@
                             <small>Type: </small>
                             <div>
                                 <div>@SelectedUpdate?.RawUpdate.GetType().Name</div>
+                            </div>
+
+                            <small>Response: </small>
+                            <div>
+                                <div>@SelectedUpdate?.ResponseId</div>
+                            </div>
+
+                            <small>Item: </small>
+                            <div>
+                                <div>@SelectedUpdate?.ItemId</div>
                             </div>
 
                             <br />
