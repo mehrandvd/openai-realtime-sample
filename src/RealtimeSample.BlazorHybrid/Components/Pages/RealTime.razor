@@ -4,50 +4,68 @@
 <BitStack AutoSize>
     <BitText Tag="h1">Realtime API</BitText>
     <BitButton OnClick="OnStartClicked">Start Realtime</BitButton>
+
     <BitStack Horizontal>
-        <BitStack AutoWidth>
-            <BitScrollablePane style="max-height: 800px" FullWidth>
-                <BitStack Gap="0.5rem" AutoWidth>
-                    @foreach(var item in UpdateGroups)
-                    {
-                        <BitCard FullWidth>
-                            <BitText Tag="h3"><strong>@item.Updates.Count</strong> updates -  @item.GroupId</BitText>
-                            <BitStack Wrap Alignment="BitAlignment.Start" style="max-height:300px">
-                                @foreach (var update in item.Updates)
-                                {
-                                    <BitTag 
-                                        Variant="BitVariant.Fill" 
-                                        style="cursor: pointer;"
-                                        Size="BitSize.Small"
-                                        Color="@(update.IsOutOfOrder ? BitColor.Warning : BitColor.Primary)"
-                                        OnClick="()=>SetSelectedUpdate(update.RawUpdate)"
-                                    >
-                                        @update.EventType
-                                    </BitTag>
-                                }
-                            </BitStack>
-                        </BitCard>
-                    }
-                </BitStack>
-            </BitScrollablePane>
-        </BitStack>
-        <BitStack style="max-width: 300px">
-            <BitScrollablePane style="max-height: 800px">
-                <BitCard>
-                <code>
-                    <div>
-                        <strong>@SelectedUpdate?.Kind</strong>
-                    </div>
-                    <div>
-                        <strong>@SelectedUpdate?.GetType().Name</strong>
-                    </div>
-                    <pre>
-                        @FormatJson(SelectedUpdate?.GetRawContent()?.ToString())
-                    </pre>
-                </code>
-                </BitCard>
-            </BitScrollablePane>
-        </BitStack>
-        
+        @if (UpdateGroups.Any())
+        {
+            <BitStack AutoWidth>
+                <BitScrollablePane style="max-height: 800px" FullWidth>
+                    <BitStack Gap="0.5rem" AutoWidth>
+                        @foreach (var group in UpdateGroups)
+                        {
+                            <BitCard FullWidth>
+                                <BitStack>
+                                    <BitText Tag="h4"><strong>@group.Updates.Count</strong> @group.Title</BitText>
+                                    <BitStack Wrap Alignment="BitAlignment.Start" style="max-height:300px">
+                                        @foreach (var update in group.Updates)
+                                        {
+                                            <BitTag Variant="@GetTagVariant(update)"
+                                                    style="cursor: pointer;"
+                                                    Size="@(update == SelectedUpdate ? BitSize.Large : BitSize.Small)"
+                                                    Color="@(update.IsOutOfOrder ? BitColor.Warning : BitColor.Primary)"
+                                                    OnClick="() => SetSelectedUpdate(update)">
+                                                @update.EventType
+                                            </BitTag>
+                                        }
+                                    </BitStack>
+                                </BitStack>
+                            </BitCard>
+                        }
+                    </BitStack>
+                </BitScrollablePane>
+            </BitStack>
+        }
+        @if (SelectedUpdate is not null)
+        {
+            <BitStack style="max-width: 300px">
+                <BitScrollablePane style="max-height: 800px">
+
+                    <BitCard>
+                        <code>
+                            <div>
+                                <strong>@SelectedUpdate?.EventType</strong>
+                            </div>
+
+                            <small>Kind: </small>
+                            <div>
+                                <div>@SelectedUpdate?.RawUpdate.Kind</div>
+                            </div>
+
+                            <small>Type: </small>
+                            <div>
+                                <div>@SelectedUpdate?.RawUpdate.GetType().Name</div>
+                            </div>
+
+                            <br />
+                            <pre>
+                                    @FormatJson(SelectedUpdate?.RawUpdate.GetRawContent()?.ToString())
+                                </pre>
+                        </code>
+                    </BitCard>
+
+                </BitScrollablePane>
+            </BitStack>
+        }
+
     </BitStack>
 </BitStack>

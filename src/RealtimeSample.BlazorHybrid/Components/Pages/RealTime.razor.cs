@@ -12,15 +12,19 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Bit.BlazorUI;
+using Microsoft.AspNetCore.Components;
 
 namespace RealtimeSample.BlazorHybrid.Components.Pages
 {
     [Experimental("OPENAI002")]
     public partial class RealTime(IMicrophoneService microphoneService, ISpeakerService speakerService)
     {
-        List<RealtimeUpdate> RealtimeUpdates { get; } = new();
+        List<UpdateContainer> Updates { get; } = new();
+        List<UpdateContainer> RelatedUpdates { get; set; } = new();
         List<UpdateGroup> UpdateGroups { get; } = new();
-        public RealtimeUpdate? SelectedUpdate { get; set; }
+        public UpdateContainer? SelectedUpdate { get; set; }
+        public UpdateContainer HoveredUpdate { get; set; }
         private async Task OnStartClicked(bool arg)
         {
             _ = Task.Run(StartRealTimeTalk);
@@ -244,9 +248,9 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
 
         private void AddRealtimeUpdate(RealtimeUpdate update)
         {
-            RealtimeUpdates.Add(update);
 
             var container = new UpdateContainer(update);
+            Updates.Add(container);
 
             using var doc = JsonDocument.Parse(update.GetRawContent());
 
@@ -262,13 +266,30 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
                 )
             {
                 var itemId = itemIdElement.GetString();
-                var group = UpdateGroups.FirstOrDefault(i => i.GroupId == itemId);
+                container.ItemId = itemId;
+            }
+
+            if (
+                doc.RootElement.TryGetProperty("response_id", out JsonElement responseIdElement)
+                ||
+                (doc.RootElement.TryGetProperty("response", out var responseElement) && responseElement.TryGetProperty("id", out responseIdElement))
+            )
+            {
+                var responseId = responseIdElement.GetString();
+                container.ResponseId = responseId;
+            }
+
+            if (container.ItemId is not null)
+            {
+                
+                var group = UpdateGroups.FirstOrDefault(i => i.GroupId == container.ItemId);
                 
                 if (group == null)
                 {
                     group = new UpdateGroup 
                     { 
-                        GroupId = itemId ,
+                        GroupId = container.ItemId ?? "N/A",
+                        Title = container.EventType ?? "N/A",
                     };
                     UpdateGroups.Insert(0, group);
                 }
@@ -288,7 +309,8 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
                 var item = new UpdateGroup
                 {
                     GroupId = update.Kind.ToString(),
-                    Updates = { container /* new UpdateContainer(update)*/ }
+                    Title = container.EventType ?? "N/A",
+                    Updates = { container }
                 };
                 UpdateGroups.Insert(0, item);
             }
@@ -296,24 +318,60 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
             InvokeAsync(StateHasChanged);
         }
 
-        void SetSelectedUpdate(RealtimeUpdate update)
+        void SetSelectedUpdate(UpdateContainer update)
         {
             SelectedUpdate = update;
+            RelatedUpdates = GetRelatedUpdates(update);
             StateHasChanged();
         }
 
         class UpdateGroup
         {
             public string GroupId { get; set; } = "";
+            public string Title { get; set; } = "";
             public List<UpdateContainer> Updates { get; } = [];
         }
 
-        class UpdateContainer(RealtimeUpdate rawUpdate, bool isOutOfOrder = false)
+        public List<UpdateContainer> GetRelatedUpdates(UpdateContainer update)
         {
+            var query = from otherUpdate in Updates
+                       where 
+                            (update.ItemId is not null && update.ItemId == otherUpdate.ItemId)
+                            || (update.ResponseId is not null && update.ResponseId == otherUpdate.ResponseId)
+                            || (update.ConversationId is not null && update.ConversationId == otherUpdate.ConversationId)
+                       select otherUpdate;
+
+            var list = query.ToList();
+            return list;
+        }
+
+
+
+        public class UpdateContainer(RealtimeUpdate rawUpdate, bool isOutOfOrder = false)
+        {
+            public string Id { get; } = Guid.NewGuid().ToString();
+            public string? ItemId { get; set; }
+            public string? ResponseId { get; set; }
+            public string? ConversationId { get; set; }
+
             public string? EventType { get; set; }
             public RealtimeUpdate RawUpdate { get; set; } = rawUpdate;
             public bool IsOutOfOrder { get; set; } = isOutOfOrder;
 
+            public override string ToString()
+            {
+                return $"{Id} - {RawUpdate.Kind} - {EventType} - {ItemId}"
+                ;
+            }
+
+        }
+
+        private BitVariant GetTagVariant(UpdateContainer update)
+        {
+            var variant = RelatedUpdates.Any(r => r.Id == update.Id) 
+                ? BitVariant.Fill 
+                : BitVariant.Outline;
+            return variant;
         }
     }
 }
