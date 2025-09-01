@@ -17,11 +17,12 @@
                                 {
                                     <BitTag 
                                         Variant="BitVariant.Fill" 
+                                        style="cursor: pointer;"
                                         Size="BitSize.Small"
                                         Color="@(update.IsOutOfOrder ? BitColor.Warning : BitColor.Primary)"
                                         OnClick="()=>SetSelectedUpdate(update.RawUpdate)"
                                     >
-                                        @update.RawUpdate.Kind
+                                        @update.EventType
                                     </BitTag>
                                 }
                             </BitStack>

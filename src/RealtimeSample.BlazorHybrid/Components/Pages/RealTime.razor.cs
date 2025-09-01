@@ -246,7 +246,14 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
         {
             RealtimeUpdates.Add(update);
 
+            var container = new UpdateContainer(update);
+
             using var doc = JsonDocument.Parse(update.GetRawContent());
+
+            if (doc.RootElement.TryGetProperty("type", out var eventTypeElement))
+            {
+                container.EventType = eventTypeElement.GetString();
+            }
 
             if (
                 doc.RootElement.TryGetProperty("item_id", out JsonElement itemIdElement)
@@ -266,7 +273,7 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
                     UpdateGroups.Insert(0, group);
                 }
 
-                var container = new UpdateContainer(update);
+                // var container = new UpdateContainer(update);
                 var lastGroup = UpdateGroups.First();
 
                 if (lastGroup != null && lastGroup != group)
@@ -281,7 +288,7 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
                 var item = new UpdateGroup
                 {
                     GroupId = update.Kind.ToString(),
-                    Updates = { new UpdateContainer(update) }
+                    Updates = { container /* new UpdateContainer(update)*/ }
                 };
                 UpdateGroups.Insert(0, item);
             }
@@ -303,6 +310,7 @@ namespace RealtimeSample.BlazorHybrid.Components.Pages
 
         class UpdateContainer(RealtimeUpdate rawUpdate, bool isOutOfOrder = false)
         {
+            public string? EventType { get; set; }
             public RealtimeUpdate RawUpdate { get; set; } = rawUpdate;
             public bool IsOutOfOrder { get; set; } = isOutOfOrder;
 
