@@ -43,6 +43,16 @@ await session.AddItemAsync(RealtimeItem.CreateFunctionCallOutput(callId, result?
 A minimal, linear sample to grasp the core concept:
 - Shows the end‑to‑end flow with a single weather function.
 - Easiest place to copy the pattern into your own app.
+- **Enhanced with Spectre.Console** for beautiful, colorful output with distinct formatting for user vs assistant messages, tool calls, and status updates.
+
+Features enhanced console output including:
+- 🎤 Colorful welcome panel and session information
+- 👤 User transcript panels with blue borders
+- 🤖 Streaming assistant responses in cyan
+- 🔧 Tool call panels with yellow borders
+- 📋 Tool result panels with green borders
+- ✅ Status indicators with emojis and timestamps
+- ❌ Error messages in red panels
 
 ### 2. RealtimeSample.BlazorHybrid (.NET MAUI)
 A richer, event‑centric view:

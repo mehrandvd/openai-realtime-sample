@@ -2,6 +2,7 @@
 using Microsoft.Extensions.AI;
 using OpenAI.Realtime;
 using RealtimeSample.Console; // for AIExtensions
+using RealtimeSample.Console.Display;
 using RealtimeSample.Console.Utility;
 using System.ClientModel;
 using System.ComponentModel;
@@ -10,7 +11,7 @@ using System.Text.Json.Nodes;
 
 #pragma warning disable OPENAI002
 
-Console.WriteLine("This is a comprehensive OpenAI Realtime API sample!");
+ConsoleDisplay.ShowWelcome();
 
 var endpoint = Environment.GetEnvironmentVariable("AzureOpenAI:gpt4o-realtime:Endpoint")
     ?? throw new InvalidOperationException("Endpoint not found");
@@ -60,32 +61,36 @@ await session.ConfigureConversationSessionAsync(sessionOptions);
 
 await foreach (RealtimeUpdate update in session.ReceiveUpdatesAsync())
 {
-    Console.WriteLine($"--- Update received: {update.GetType().Name}");
+    ConsoleDisplay.ShowDebugInfo($"Update received: {update.GetType().Name}");
 
     if (update is ConversationSessionStartedUpdate sessionStartedUpdate)
     {
-        Console.WriteLine($"<<< Session started. ID: {sessionStartedUpdate.SessionId}");
-        Console.WriteLine();
+        ConsoleDisplay.ShowSessionStarted(sessionStartedUpdate.SessionId);
         _ = Task.Run(async () => await session.SendInputAudioAsync(micStream));
     }
 
     if (update is InputAudioSpeechStartedUpdate speechStartedUpdate)
     {
-        Console.WriteLine(
-            $"  -- Voice activity detection started at {speechStartedUpdate.AudioStartTime}");
+        ConsoleDisplay.ShowVoiceActivityStarted(speechStartedUpdate.AudioStartTime);
     }
 
     if (update is InputAudioSpeechFinishedUpdate speechFinishedUpdate)
     {
-        Console.WriteLine(
-            $"  -- Voice activity detection ended at {speechFinishedUpdate.AudioEndTime}");
+        ConsoleDisplay.ShowVoiceActivityEnded(speechFinishedUpdate.AudioEndTime);
     }
 
     if (update is OutputDeltaUpdate deltaUpdate)
     {
-        Console.Write(deltaUpdate.AudioTranscript);
-        Console.Write(deltaUpdate.Text);
-        Console.Write(deltaUpdate.FunctionArguments);
+        // Start streaming response if this is the first delta
+        if (!string.IsNullOrEmpty(deltaUpdate.AudioTranscript) || !string.IsNullOrEmpty(deltaUpdate.Text))
+        {
+            ConsoleDisplay.StartAssistantResponse();
+        }
+
+        ConsoleDisplay.AppendToAssistantResponse(deltaUpdate.AudioTranscript);
+        ConsoleDisplay.AppendToAssistantResponse(deltaUpdate.Text);
+        ConsoleDisplay.AppendToAssistantResponse(deltaUpdate.FunctionArguments);
+        
         if (deltaUpdate.AudioBytes is not null)
         {
             if (speaker != null && deltaUpdate.AudioBytes is not null)
@@ -97,8 +102,7 @@ await foreach (RealtimeUpdate update in session.ReceiveUpdatesAsync())
 
     if (update is OutputStreamingFinishedUpdate itemStreamingFinishedUpdate)
     {
-        Console.WriteLine();
-        Console.WriteLine($"  -- Item streaming finished, item_id={itemStreamingFinishedUpdate.ItemId}");
+        ConsoleDisplay.ShowStreamingFinished(itemStreamingFinishedUpdate.ItemId);
 
         if (itemStreamingFinishedUpdate.FunctionCallId is not null)
         {
@@ -106,6 +110,8 @@ await foreach (RealtimeUpdate update in session.ReceiveUpdatesAsync())
             var callId = itemStreamingFinishedUpdate.FunctionCallId;
             var functionName = itemStreamingFinishedUpdate.FunctionName;
             var functionCallArguments = itemStreamingFinishedUpdate.FunctionCallArguments;
+
+            ConsoleDisplay.ShowFunctionCall(functionName!, functionCallArguments!);
 
             JsonNode node = JsonNode.Parse(functionCallArguments)!;
             AIFunctionArguments functionArgs = ToAIFunctionArguments(node);
@@ -122,6 +128,8 @@ await foreach (RealtimeUpdate update in session.ReceiveUpdatesAsync())
                 output = $"Tool execution failed: {ex.Message}";
             }
 
+            ConsoleDisplay.ShowFunctionResult(output);
+
             RealtimeItem functionOutputItem = RealtimeItem.CreateFunctionCallOutput(
                 callId: callId,
                 output: output);
@@ -130,37 +138,29 @@ await foreach (RealtimeUpdate update in session.ReceiveUpdatesAsync())
         }
         else if (itemStreamingFinishedUpdate.MessageContentParts?.Count > 0)
         {
-            Console.Write($"    + [{itemStreamingFinishedUpdate.MessageRole}]: ");
-            foreach (ConversationContentPart contentPart in itemStreamingFinishedUpdate.MessageContentParts)
-            {
-                Console.Write(contentPart.AudioTranscript);
-            }
-            Console.WriteLine();
+            ConsoleDisplay.FinishAssistantResponse();
         }
     }
 
     if (update is InputAudioTranscriptionFinishedUpdate transcriptionCompletedUpdate)
     {
-        Console.WriteLine();
-        Console.WriteLine($"  -- User audio transcript: {transcriptionCompletedUpdate.Transcript}");
-        Console.WriteLine();
+        ConsoleDisplay.ShowUserTranscript(transcriptionCompletedUpdate.Transcript);
     }
 
     if (update is ResponseFinishedUpdate turnFinishedUpdate)
     {
-        Console.WriteLine($"  -- Model turn generation finished. Status: {turnFinishedUpdate.Status}");
+        ConsoleDisplay.ShowTurnFinished(turnFinishedUpdate.Status?.ToString() ?? "Unknown");
 
         if (turnFinishedUpdate.CreatedItems.Any(item => item.FunctionName?.Length > 0))
         {
-            Console.WriteLine($"  -- Ending client turn for pending tool responses");
+            ConsoleDisplay.ShowPendingToolResponses();
             await session.StartResponseAsync();
         }
     }
 
     if (update is RealtimeErrorUpdate errorUpdate)
     {
-        Console.WriteLine();
-        Console.WriteLine($"ERROR: {errorUpdate.Message}");
+        ConsoleDisplay.ShowError(errorUpdate.Message);
         break;
     }
 }
